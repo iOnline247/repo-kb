@@ -1,0 +1,22 @@
+{
+  "name": "llm-personal-kb",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Personal knowledge base compiled from AI conversations",
+  "scripts": {
+    "compile": "tsx scripts/compile.ts",
+    "query": "tsx scripts/query.ts",
+    "lint:kb": "tsx scripts/lint.ts",
+    "lint:kb:structural": "tsx scripts/lint.ts --structural-only",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "@github/copilot-sdk": "^0.2.1"
+  }
+}
