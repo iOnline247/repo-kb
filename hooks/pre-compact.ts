@@ -7,6 +7,8 @@ import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { extractConversationContext, resolveHookInvocation, safeSessionId } from "./transcript.js";
+
 if (process.env.COPILOT_INVOKED_BY) {
   process.exit(0);
 }
@@ -25,98 +27,18 @@ function log(message: string): void {
   appendFileSync(LOG_PATH, `${ts} INFO [pre-compact] ${message}\n`, "utf-8");
 }
 
-function parseHookInput(raw: string): Record<string, unknown> {
-  try {
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    const fixed = raw.replace(/(?<!\\)\\(?!["\\])/g, "\\\\");
-    return JSON.parse(fixed) as Record<string, unknown>;
-  }
-}
-
-function normalizeContent(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  const parts: string[] = [];
-  for (const block of content) {
-    if (typeof block === "string") {
-      parts.push(block);
-      continue;
-    }
-    if (
-      block &&
-      typeof block === "object" &&
-      "type" in block &&
-      "text" in block &&
-      (block as { type: unknown }).type === "text" &&
-      typeof (block as { text: unknown }).text === "string"
-    ) {
-      parts.push((block as { text: string }).text);
-    }
-  }
-  return parts.join("\n");
-}
-
-function extractConversationContext(transcriptPath: string): { context: string; turnCount: number } {
-  const turns: string[] = [];
-  const lines = readFileSync(transcriptPath, "utf-8").split(/\r?\n/);
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    let entry: Record<string, unknown>;
-    try {
-      entry = JSON.parse(trimmed) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-
-    const msg =
-      entry.message && typeof entry.message === "object"
-        ? (entry.message as Record<string, unknown>)
-        : entry;
-
-    const role = msg.role;
-    if (role !== "user" && role !== "assistant") continue;
-
-    const content = normalizeContent(msg.content);
-    if (!content.trim()) continue;
-
-    const label = role === "user" ? "User" : "Assistant";
-    turns.push(`**${label}:** ${content.trim()}\n`);
-  }
-
-  const recent = turns.slice(-MAX_TURNS);
-  let context = recent.join("\n");
-
-  if (context.length > MAX_CONTEXT_CHARS) {
-    context = context.slice(-MAX_CONTEXT_CHARS);
-    const boundary = context.indexOf("\n**");
-    if (boundary > 0) context = context.slice(boundary + 1);
-  }
-
-  return { context, turnCount: recent.length };
-}
-
-function safeSessionId(input: string): string {
-  return input.replace(/[^a-zA-Z0-9._-]/g, "_");
-}
-
 function main(): void {
   const rawInput = readFileSync(0, "utf-8");
 
-  let hookInput: Record<string, unknown>;
+  let invocation: ReturnType<typeof resolveHookInvocation>;
   try {
-    hookInput = parseHookInput(rawInput);
+    invocation = resolveHookInvocation(rawInput);
   } catch (error) {
     log(`Failed to parse stdin: ${String(error)}`);
     return;
   }
 
-  const sessionId = typeof hookInput.session_id === "string" ? hookInput.session_id : "unknown";
-  const transcriptPath =
-    typeof hookInput.transcript_path === "string" ? hookInput.transcript_path : "";
+  const { sessionId, transcriptPath } = invocation;
 
   log(`PreCompact fired: session=${sessionId}`);
 
@@ -131,7 +53,7 @@ function main(): void {
 
   let extracted: { context: string; turnCount: number };
   try {
-    extracted = extractConversationContext(transcriptPath);
+    extracted = extractConversationContext(transcriptPath, MAX_TURNS, MAX_CONTEXT_CHARS);
   } catch (error) {
     log(`Context extraction failed: ${String(error)}`);
     return;
