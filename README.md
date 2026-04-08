@@ -10,7 +10,7 @@ The TypeScript runtime uses the GitHub Copilot SDK and your local Copilot authen
 
 Tell your AI coding agent:
 
-> "Clone <https://github.com/iOnline247/repo-kb> into this project. Set up the hooks so my conversations automatically get captured into daily logs, compiled into a knowledge base, and injected back into future sessions. Read the AGENTS.md for the full technical reference on how everything works."
+> "Find the root of the repo: `git rev-parse --show-toplevel`. Clone <https://github.com/iOnline247/repo-kb> into this project in a temporary directory. Set up the hooks so my conversations automatically get captured into daily logs, compiled into a knowledge base, and injected back into future sessions. Read the AGENTS.md for the full technical reference on how everything works. Remove the temporary directory that was used to clone the repo."
 
 The agent will:
 
